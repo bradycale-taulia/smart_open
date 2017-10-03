@@ -63,7 +63,7 @@ S3_MIN_PART_SIZE = 50 * 1024**2  # minimum part size for S3 multipart uploads
 WEBHDFS_MIN_PART_SIZE = 50 * 1024**2  # minimum part size for HDFS multipart uploads
 
 
-def smart_open(uri, mode="rb", **kw):
+def smart_open(uri, mode="rb", encrypt_file=False, **kw):
     """
     Open the given S3 / HDFS / filesystem file pointed to by `uri` for reading or writing.
 
@@ -170,7 +170,7 @@ def smart_open(uri, mode="rb", **kw):
                 key = bucket.get_key(parsed_uri.key_id, validate=False)
                 if key is None:
                     raise KeyError(parsed_uri.key_id)
-                return S3OpenWrite(key, **kw)
+                return S3OpenWrite(key, encrypt_file, **kw)
             else:
                 raise NotImplementedError("file mode %s not supported for %r scheme", mode, parsed_uri.scheme)
 
@@ -200,7 +200,7 @@ def smart_open(uri, mode="rb", **kw):
         if mode in ('r', 'rb'):
             return S3OpenRead(uri)
         elif mode in ('w', 'wb'):
-            return S3OpenWrite(uri, **kw)
+            return S3OpenWrite(uri, encrypt_file, **kw)
     elif hasattr(uri, 'read'):
         # simply pass-through if already a file-like
         return uri
@@ -774,7 +774,7 @@ def HttpOpenRead(parsed_uri, mode='r', **kwargs):
         return compression_wrapper(response, fname, mode)
 
 
-class S3OpenWrite(object):
+class S3OpenWrite(object, encrypt_file):
     """
     Context manager for writing into S3 files.
 
@@ -799,7 +799,7 @@ class S3OpenWrite(object):
             logger.warning("S3 requires minimum part size >= 5MB; multipart upload may fail")
 
         # initialize mulitpart upload
-        self.mp = self.outkey.bucket.initiate_multipart_upload(self.outkey, **kw)
+        self.mp = self.outkey.bucket.initiate_multipart_upload(self.outkey, encrypt_key=encrypt_file, **kw)
 
         # initialize stats
         self.lines = []
